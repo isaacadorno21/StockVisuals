@@ -1,25 +1,101 @@
 import sys
-#import json
 import requests
 import ftplib
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Plan to use Alpha Vantage to grab "realtime and historical" stock data
 # Plan to use Dash and Pandas for data visualization in the future
 
-
 def main():
-    print(sys.executable)
     # TEXT Introduction
     # Good to start but eventually I want a full GUI!
     print("--------------------")
     print("STOCK VISUALIZER")
     print("--------------------")
-    stock = input("Enter the ticker of a share to get into: ")
-    apiKey = getKey()
-    testQuery = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=' + stock + '&apikey=' + apiKey
-    r = requests.get(testQuery)
+    stock = input("Enter the ticker of a share to get into: ").upper()
 
     company_info = getCompanyBasicInfo(stock)
+    if company_info == "N/A":
+        print("Stock does not exist. Program terminating....")
+        sys.exit()
+
+    printCompanyBasicInfo(company_info)
+
+    apiKey = getKey()
+    print("List of Available Functions:")
+    print("TIME_SERIES_INTRADAY: intraday time series (timestamp, open, high, low, close, volume)")
+    print("TIME_SERIES_DAILY:  daily time series (date, daily open, daily high, daily low, daily close, daily volume)")
+    print("TIME_SERIES_DAILY_ADJUSTED: daily time series (date, daily open, daily high, daily low, daily close, daily volume, daily adjusted close, and split/dividend events)")
+    print("TIME_SERIES_WEEKLY: weekly time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly volume)")
+    print("TIME_SERIES_WEEKLY_ADJUSTED: weekly adjusted time series (last trading day of each week, weekly open, weekly high, weekly low, weekly close, weekly adjusted close, weekly volume, weekly dividend)")
+    print("TIME_SERIES_MONTHLY: monthly time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly volume)")
+    print("TIME_SERIES_MONTHLY_ADJUSTED: monthly adjusted time series (last trading day of each month, monthly open, monthly high, monthly low, monthly close, monthly adjusted close, monthly volume, monthly dividend)")
+    print("GLOBAL_QUOTE: the latest price and volume information")
+    print("")
+    function = input("Enter the wanted function: ")
+
+    query = 'https://www.alphavantage.co/query?function=' + function + '&symbol=' + stock + '&apikey=' + apiKey
+    r = requests.get(query)
+    displayGraph(r.json(), function, company_info[1])
+
+
+def getKey():
+    configFile = open("APIConfig.txt", "r")
+    if configFile.mode == 'r':
+        return configFile.read()
+    else:
+        print("Proper API Key not found. Program terminating....")
+        sys.exit()
+
+
+def getCompanyBasicInfo(stock):
+    # Get's company name from NASDAQ, NYSE, other exchanges
+
+    nasdaq_file = 'nasdaqlisted.txt'
+    other_file = 'otherlisted.txt'
+
+    ftp_srv = 'ftp.nasdaqtrader.com'
+    ftp = ftplib.FTP(ftp_srv)
+    ftp.login()
+    ftp.cwd('SymbolDirectory')
+
+    local_nasdaq_dir = 'data/nasdaqlisted.txt'
+    local_nasdaq_file = open(local_nasdaq_dir, 'wb')
+    ftp.retrbinary('RETR ' + nasdaq_file, local_nasdaq_file.write, 1024)
+
+    local_other_dir = 'data/otherlisted.txt'
+    local_other_file = open(local_other_dir, 'wb')
+    ftp.retrbinary('RETR ' + other_file, local_other_file.write, 1024)
+
+    ftp.quit()
+    local_nasdaq_file.close()
+    local_other_file.close()
+
+    local_nasdaq_file = open(local_nasdaq_dir, "r+")
+    for line in local_nasdaq_file:
+        cur_line = line.split("|")
+        if cur_line[0] == stock:
+            local_nasdaq_file.truncate(0)
+            local_nasdaq_file.close()
+            return cur_line
+
+    # If we get to this point, the company wasn't listed under the NASDAQ exchange
+
+    local_other_file = open(local_other_dir, "r+")
+    for line in local_other_file:
+        cur_line = line.split("|")
+        if cur_line[0] == stock:
+            local_other_file.truncate(0)
+            local_other_file.close()
+            return cur_line
+
+    return "N/A"
+
+
+def printCompanyBasicInfo(company_info):
+    # Print out basic info about the company,
+
     print("--------------------")
     print("Ticker Symbol: " + company_info[0])
     print("Company Name: " + company_info[1])
@@ -53,47 +129,44 @@ def main():
     print("Financial Status: " + financial_status)
     print("Round Lot Size: " + company_info[5])
     print("--------------------")
-    print(r.text)
 
+def displayGraph(company_data, function, company_name):
+    date_list = np.linspace(start=1, stop=100, num=100)
+    daily_list = []
+    function_label = ""
+    data_point_type = ""
 
-def getKey():
-    configFile = open("APIConfig.txt", "r")
-    if configFile.mode == 'r':
-        return configFile.read()
-    else:
-        print("Proper API Key not found. Program terminating....")
-        sys.exit()
+    if function == "TIME_SERIES_DAILY":
+        function_label = 'Time Series (Daily)'
+        print("--------------------")
+        print("List of Available Data Points:")
+        print("1. open")
+        print("2. high")
+        print("3. low")
+        print("4. close")
+        print("5. volume")
+        print("")
+        data_point_type = input("Enter the type of data you'd like to view: ")
 
+    for value in company_data[function_label].values():
+        daily_list.append(float(value[data_point_type]))
 
-def getCompanyBasicInfo(stock):
-    # Get's company name from NASDAQ, NYSE, other exchanges
-
-    nasdaq_file = 'nasdaqlisted.txt'
-    other_file = 'otherlisted.txt'
-
-    ftp_srv = 'ftp.nasdaqtrader.com'
-    ftp = ftplib.FTP(ftp_srv)
-    ftp.login()
-    ftp.cwd('SymbolDirectory')
-
-    local_filedir = 'data/nasdaqlisted.txt'
-    localfile = open(local_filedir, 'wb')
-    ftp.retrbinary('RETR ' + nasdaq_file, localfile.write, 1024)
-
-    ftp.quit()
-    localfile.close()
-
-    localfile = open(local_filedir, "r")
-    for line in localfile:
-        cur_line = line.split("|")
-        if cur_line[0] == stock:
-            return cur_line
+    plt.plot(date_list, daily_list)
+    plt.ylabel('Daily Open')
+    plt.xlabel('Days')
+    plt.title(company_name)
+    plt.axis([0, 100, min(daily_list) * 0.9, max(daily_list) * 1.1])
+    plt.show()
 
 main()
 
 
 # To Do:
 # Clear file when done OR check if file needs to be written - diff FTP file and local
+# Check 'otherlisted' if not listed in NASDAQ
 # Actually use data instead of just printing out
 # Add base cases and edge cases
+# Add status codes to requests
 # Refactor :o
+# Use Alpha Vantage Search Endpoint instead of FTP
+# Remove hardcoding
