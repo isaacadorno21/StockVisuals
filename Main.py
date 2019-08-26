@@ -78,10 +78,12 @@ def getCompanyBasicInfo(stock):
         if cur_line[0] == stock:
             local_nasdaq_file.truncate(0)
             local_nasdaq_file.close()
+            open(local_other_dir, 'w').close()
             return cur_line
+    local_nasdaq_file.truncate(0)
+    local_nasdaq_file.close()
 
     # If we get to this point, the company wasn't listed under the NASDAQ exchange
-
     local_other_file = open(local_other_dir, "r+")
     for line in local_other_file:
         cur_line = line.split("|")
@@ -89,7 +91,8 @@ def getCompanyBasicInfo(stock):
             local_other_file.truncate(0)
             local_other_file.close()
             return cur_line
-
+    local_other_file.truncate(0)
+    local_other_file.close()
     return "N/A"
 
 
@@ -146,7 +149,8 @@ def displayGraph(company_data, function, company_name):
         print("4. close")
         print("5. volume")
         print("")
-        data_point_type = input("Enter the type of data you'd like to view: ")
+
+    data_point_type = input("Enter the type of data you'd like to view: ")
 
     for value in company_data[function_label].values():
         daily_list.append(float(value[data_point_type]))
@@ -162,9 +166,6 @@ main()
 
 
 # To Do:
-# Clear file when done OR check if file needs to be written - diff FTP file and local
-# Check 'otherlisted' if not listed in NASDAQ
-# Actually use data instead of just printing out
 # Add base cases and edge cases
 # Add status codes to requests
 # Refactor :o
